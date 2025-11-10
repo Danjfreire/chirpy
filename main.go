@@ -1,21 +1,33 @@
 package main
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+	"sync/atomic"
+)
+
+type ApiConfig struct {
+	FileServerHits atomic.Int32
+}
 
 func main() {
 	mux := http.NewServeMux()
 	server := &http.Server{}
 	server.Handler = mux
 	server.Addr = ":8080"
+	config := ApiConfig{FileServerHits: atomic.Int32{}}
 
-	mux.Handle("/app/", http.StripPrefix("/app", http.FileServer(http.Dir("./"))))
-	mux.HandleFunc("/healthz", healthzHandler)
+	// app routes
+	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./")))))
 
+	// api routes
+	mux.HandleFunc("GET /api/healthz", healthzHandler)
+	mux.HandleFunc("POST /api/validate_chirp", validateChirpHandler)
+
+	// admin routes
+	mux.HandleFunc("GET /admin/metrics", config.metricsHandler)
+	mux.HandleFunc("POST /admin/reset", config.resetMetricsHandler)
+
+	fmt.Println("Starting server on http://localhost:8080")
 	server.ListenAndServe()
-}
-
-func healthzHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
