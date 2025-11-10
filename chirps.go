@@ -53,6 +53,48 @@ func (cfg *ApiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 	respondWithJSON(w, http.StatusCreated, res)
 }
 
+func (cfg *ApiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to get chirps", err)
+		return
+	}
+
+	res := []Chirp{}
+
+	for _, chirp := range chirps {
+		res = append(res, Chirp{
+			Id:        chirp.ID,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, res)
+}
+
+func (cfg *ApiConfig) findChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpId")
+	chirp, err := cfg.db.GetChirpByID(r.Context(), uuid.MustParse(chirpId))
+
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "chirp not found", nil)
+		return
+	}
+
+	res := Chirp{
+		Id:        chirp.ID,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+	}
+
+	respondWithJSON(w, http.StatusOK, res)
+}
+
 func removeProfanity(input string) string {
 	profaneWords := map[string]struct{}{
 		"kerfuffle": {},
