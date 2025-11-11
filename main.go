@@ -47,6 +47,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", config.createChirpHandler)
 	mux.HandleFunc("GET /api/chirps", config.getChirpsHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", config.findChirpHandler)
+	mux.HandleFunc("POST /api/login", config.loginHandler)
 
 	// admin routes
 	mux.HandleFunc("GET /admin/metrics", config.metricsHandler)
