@@ -17,6 +17,7 @@ type ApiConfig struct {
 	FileServerHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	tokenSecret    string
 }
 
 func main() {
@@ -24,6 +25,7 @@ func main() {
 
 	dbUrl := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	secret := os.Getenv("SECRET")
 	db, err := sql.Open("postgres", dbUrl)
 
 	if err != nil {
@@ -36,7 +38,7 @@ func main() {
 	server := &http.Server{}
 	server.Handler = mux
 	server.Addr = ":8080"
-	config := ApiConfig{FileServerHits: atomic.Int32{}, db: dbQueries, platform: platform}
+	config := ApiConfig{FileServerHits: atomic.Int32{}, db: dbQueries, platform: platform, tokenSecret: secret}
 
 	// app routes
 	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./")))))
