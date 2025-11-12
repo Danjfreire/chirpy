@@ -66,3 +66,63 @@ func (cfg *ApiConfig) resetUsersHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 }
+
+func (cfg *ApiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	type response struct {
+		User
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing token", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.tokenSecret)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid token", err)
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "invalid user update params", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal Error", err)
+		return
+	}
+
+	updateUserParams := database.UpdateUserPasswordParams{ID: userId, Email: params.Email, HashedPassword: hashedPassword}
+	user, err := cfg.db.UpdateUserPassword(r.Context(), updateUserParams)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to update user", err)
+		return
+	}
+
+	resp := response{
+		User: User{
+			Id:        user.ID.String(),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		},
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}

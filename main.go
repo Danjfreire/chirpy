@@ -52,6 +52,7 @@ func main() {
 	mux.HandleFunc("POST /api/login", config.loginHandler)
 	mux.HandleFunc("POST /api/refresh", config.refreshHandler)
 	mux.HandleFunc("POST /api/revoke", config.revokeHandler)
+	mux.HandleFunc("PUT /api/users", config.updateUserHandler)
 
 	// admin routes
 	mux.HandleFunc("GET /admin/metrics", config.metricsHandler)
