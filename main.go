@@ -50,6 +50,8 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", config.getChirpsHandler)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", config.findChirpHandler)
 	mux.HandleFunc("POST /api/login", config.loginHandler)
+	mux.HandleFunc("POST /api/refresh", config.refreshHandler)
+	mux.HandleFunc("POST /api/revoke", config.revokeHandler)
 
 	// admin routes
 	mux.HandleFunc("GET /admin/metrics", config.metricsHandler)

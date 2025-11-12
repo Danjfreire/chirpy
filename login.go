@@ -2,21 +2,23 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/Danjfreire/chirpy/internal/auth"
+	"github.com/Danjfreire/chirpy/internal/database"
 )
 
 func (cfg *ApiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"` // in seconds
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	type response struct {
-		Token string `json:"token"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 		User
 	}
 
@@ -44,10 +46,6 @@ func (cfg *ApiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	expiration := int32(3600) // default 1 hour
 
-	if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds <= 3600 {
-		expiration = int32(params.ExpiresInSeconds)
-	}
-
 	token, err := auth.MakeJWT(user.ID, cfg.tokenSecret, time.Second*time.Duration(expiration))
 
 	if err != nil {
@@ -55,8 +53,19 @@ func (cfg *ApiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	refreshtokenDuration := time.Hour * 24 * 60 // 60 days
+	refreshTokenParams := database.CreateRefreshTokenParams{Token: auth.MakeRefreshToken(), UserID: user.ID, ExpiresAt: time.Now().Add(refreshtokenDuration)}
+	refreshToken, err := cfg.db.CreateRefreshToken(r.Context(), refreshTokenParams)
+
+	if err != nil {
+		fmt.Println(err)
+		respondWithError(w, http.StatusInternalServerError, "Could not create refresh token", err)
+		return
+	}
+
 	resp := response{
-		Token: token,
+		Token:        token,
+		RefreshToken: refreshToken,
 		User: User{
 			Id:        user.ID.String(),
 			CreatedAt: user.CreatedAt,
@@ -66,4 +75,52 @@ func (cfg *ApiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (cfg *ApiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Token string `json:"token"`
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing or invalid refresh token", err)
+	}
+
+	refreshToken, err := cfg.db.GetRefreshTokenByToken(r.Context(), token)
+
+	if err != nil || refreshToken.ExpiresAt.Before(time.Now()) || refreshToken.RevokedAt.Valid {
+		respondWithError(w, http.StatusUnauthorized, "invalid or expired refresh token", err)
+	}
+
+	expiration := int32(3600) // default 1 hour
+	newToken, err := auth.MakeJWT(refreshToken.UserID, cfg.tokenSecret, time.Duration(expiration)*time.Second)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "could not create token", err)
+	}
+
+	resp := response{
+		Token: newToken,
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (cfg *ApiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
+	refreshToken, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing or invalid refresh token", err)
+	}
+
+	err = cfg.db.RevokeRefreshToken(r.Context(), refreshToken)
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "could not revoke refresh token", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
