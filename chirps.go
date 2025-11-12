@@ -129,3 +129,43 @@ func removeProfanity(input string) string {
 
 	return strings.Join(resultWords, " ")
 }
+
+func (cfg *ApiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpId")
+
+	token, err := auth.GetBearerToken(r.Header)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "missing or invalid token", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, cfg.tokenSecret)
+
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid token", err)
+		return
+	}
+
+	chirp, err := cfg.db.GetChirpByID(r.Context(), uuid.MustParse(chirpId))
+
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "chirp not found", nil)
+		return
+	}
+
+	if chirp.UserID != userId {
+		respondWithError(w, http.StatusForbidden, "you do not have permission to delete this chirp", nil)
+		return
+	}
+
+	err = cfg.db.DeleteChirpByID(r.Context(), uuid.MustParse(chirpId))
+
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "failed to delete chirp", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+
+}
