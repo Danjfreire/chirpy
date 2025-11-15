@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -68,7 +70,17 @@ func (cfg *ApiConfig) createChirpHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (cfg *ApiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.GetChirps(r.Context())
+	authorId := r.URL.Query().Get("author_id")
+
+	var chirps []database.Chirp
+	var err error
+
+	if authorId != "" {
+		chirps, err = cfg.db.GetChirpsByUserId(r.Context(), uuid.MustParse(authorId))
+	} else {
+		chirps, err = cfg.db.GetChirps(r.Context())
+	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "failed to get chirps", err)
 		return
@@ -84,6 +96,21 @@ func (cfg *ApiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: chirp.CreatedAt,
 			UpdatedAt: chirp.UpdatedAt,
 		})
+	}
+
+	sortOrder := "asc"
+
+	sortParam := r.URL.Query().Get("sort")
+	log.Printf("sort param: %s", sortParam)
+
+	if sortParam != "" && (sortParam == "asc" || sortParam == "desc") {
+		sortOrder = sortParam
+	}
+
+	if sortOrder == "desc" {
+		sort.Slice(res, func(i, j int) bool { return res[i].CreatedAt.After(res[j].CreatedAt) })
+	} else {
+		sort.Slice(res, func(i, j int) bool { return res[i].CreatedAt.Before(res[j].CreatedAt) })
 	}
 
 	respondWithJSON(w, http.StatusOK, res)

@@ -67,10 +67,11 @@ func (cfg *ApiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Token:        token,
 		RefreshToken: refreshToken,
 		User: User{
-			Id:        user.ID.String(),
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
-			Email:     user.Email,
+			Id:          user.ID.String(),
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			Email:       user.Email,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 	}
 

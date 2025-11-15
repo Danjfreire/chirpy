@@ -18,6 +18,7 @@ type ApiConfig struct {
 	db             *database.Queries
 	platform       string
 	tokenSecret    string
+	polkaApiKey    string
 }
 
 func main() {
@@ -26,6 +27,7 @@ func main() {
 	dbUrl := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
 	secret := os.Getenv("SECRET")
+	polkaApiKey := os.Getenv("POLKA_KEY")
 	db, err := sql.Open("postgres", dbUrl)
 
 	if err != nil {
@@ -38,7 +40,7 @@ func main() {
 	server := &http.Server{}
 	server.Handler = mux
 	server.Addr = ":8080"
-	config := ApiConfig{FileServerHits: atomic.Int32{}, db: dbQueries, platform: platform, tokenSecret: secret}
+	config := ApiConfig{FileServerHits: atomic.Int32{}, db: dbQueries, platform: platform, tokenSecret: secret, polkaApiKey: polkaApiKey}
 
 	// app routes
 	mux.Handle("/app/", config.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./")))))
@@ -54,6 +56,9 @@ func main() {
 	mux.HandleFunc("POST /api/refresh", config.refreshHandler)
 	mux.HandleFunc("POST /api/revoke", config.revokeHandler)
 	mux.HandleFunc("PUT /api/users", config.updateUserHandler)
+
+	// webhook routes
+	mux.HandleFunc("POST /api/polka/webhooks", config.upgradeUserToChirpyRedHandler)
 
 	// admin routes
 	mux.HandleFunc("GET /admin/metrics", config.metricsHandler)
